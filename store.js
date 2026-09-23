@@ -23,12 +23,7 @@ function defaultDB(){ return {
   rating:'4,9'
  },
  commissions:{steam:30, assinaturas:15, outros:12},
- categories:[
-  {id:'prime',label:'PRIME',icon:'👑'},
-  {id:'ranks',label:'RANKS',icon:'⚔️'},
-  {id:'medalhas',label:'MEDALHAS',icon:'🏅'},
-  {id:'outros',label:'OUTROS',icon:'📦'}
- ],
+ categories:[],
  products:[
   {id:'prime-1',name:'PRIME - 1 MÊS',cat:'prime',price:29.99,old:29.99,emoji:'👑',img:KCDN('6996dc08-8d09-4c12-9a34-87bee4b84c42'),stock:100,delivery:'Automática',desc:'VIP Prime por 30 dias no servidor.'},
   {id:'prime-3',name:'PRIME - 3 MESES',cat:'prime',price:49.99,old:89.99,emoji:'👑',img:KCDN('e1c77132-9b55-41c2-8c20-76b59e0673ac'),stock:100,delivery:'Automática',desc:'VIP Prime por 90 dias. Economize 44%.'},
@@ -37,7 +32,7 @@ function defaultDB(){ return {
  ],
  coupons:[{code:'MYSTIC10',percent:10}],
  orders:[], users:[], tickets:[], withdrawals:[], clicks:[],
- _v:1,
+ _v:2,
  reviews:[
   {n:'Pedro H.',d:'20/09/2026',t:'Ativou na hora, recomendo',p:'PRIME - 1 MÊS'},
   {n:'Lucas M.',d:'18/09/2026',t:'Melhor custo-benefício o anual',p:'PRIME - 12 MESES'},
@@ -61,6 +56,8 @@ const Store = {
     if(db.settings.logo&&db.settings.logo.includes('kaizenmc.gg')) db.settings.logo='logo.png';
     if(db.coupons.find(c=>c.code==='KAIZEN10')&&!db.coupons.find(c=>c.code==='MYSTIC10')) db.coupons.find(c=>c.code==='KAIZEN10').code='MYSTIC10';
     if(db.settings.autoConfirmUrl===undefined) db.settings.autoConfirmUrl='';
+    // limpeza única v2: remove as categorias que vinham com o site (dono cria as próprias)
+    if(db._v!==2){ const SEED=['prime','ranks','medalhas','outros']; db.categories=(db.categories||[]).filter(c=>!SEED.includes(c.id)); db._v=2; }
     const d=defaultDB();
     d.categories.forEach(c=>{ if(!db.categories.find(x=>x.id===c.id)) db.categories.push(c); });
     if(!db.coupons) db.coupons=d.coupons;

@@ -42,7 +42,7 @@ function renderAll(){
  const tabs=$('tabs');
  if(tabs) tabs.innerHTML=CATS.map(c=>`<button class="tab-btn ${c.id===activeTab?'active':''}" onclick="setTab('${c.id}')">${c.label}</button>`).join('');
  const vit=$('vitrine');
- if(vit){const items=PRODUCTS.filter(p=>p.cat===activeTab);const c=CATS.find(x=>x.id===activeTab);
+ if(vit){const items=CATS.length?PRODUCTS.filter(p=>p.cat===activeTab):PRODUCTS;
   vit.innerHTML=PRODUCTS.length?`<div class="grid">${items.map(cardHTML).join('')||'<p class="muted">Nenhum produto aqui ainda.</p>'}</div>`:`<div style="text-align:center;padding:40px"><h2>📦 Catálogo em atualização</h2><p class="muted">Novidades chegando. Fale no Discord e receba as ofertas primeiro.</p><a class="btn-primary js-discord" href="${S().discord}" target="_blank">💜 Entrar no Discord</a></div>`;}
  renderCart();renderReviews();
 }
