@@ -109,7 +109,7 @@ function irCheckout(){if(!cart.length){toast('🛒 Carrinho vazio');return}toggl
  $('checkoutResumo').innerHTML=cart.map(i=>{const p=PRODUCTS.find(x=>x.id===i.id);return `<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0"><span>${i.q}x ${p.name}</span><b>${BRL(p.price*i.q)}</b></div>`}).join('')+`<div style="display:flex;justify-content:space-between;border-top:1px solid #223055;margin-top:8px;padding-top:8px"><span>Total ${cupomDesc?'com cupom':''}</span><b>${BRL(cartTotal())}</b></div>`;
  $('checkoutTotalBtn').textContent=BRL(cartTotal());atualizarPix();abrirModal('modalCheckout')}
 function setPay(m,el){payMethod=m;document.querySelectorAll('.pay-method').forEach(b=>b.classList.remove('active'));el.classList.add('active');$('pixArea').classList.toggle('hidden',m!=='pix');$('cartaoArea').classList.toggle('hidden',m!=='cartao')}
-function atualizarPix(){const total=cartTotal();const tx='NX'+Date.now().toString().slice(-8);
+function atualizarPix(){const total=cartTotal();const tx='MW'+Date.now().toString().slice(-8);
  const code=genPixCode(S().pixKey,S().pixName,S().pixCity,total,tx);
  $('pixCode').textContent=code;
  $('pixMeta').innerHTML=`🏦 <b>${S().pixName}</b><br>🔑 ${S().pixKey} · 💰 ${BRL(total)}`;
@@ -117,22 +117,25 @@ function atualizarPix(){const total=cartTotal();const tx='NX'+Date.now().toStrin
  let seg=30*60;if(pixTimer)clearInterval(pixTimer);pixTimer=setInterval(()=>{seg--;const m=String(Math.floor(seg/60)).padStart(2,'0'),s=String(seg%60).padStart(2,'0');const el=$('pixTimer');if(el)el.textContent=`⏳ Expira em ${m}:${s}`;if(seg<=0)clearInterval(pixTimer)},1000)}
 function copiarPix(){try{navigator.clipboard.writeText($('pixCode').textContent)}catch(e){}toast('📋 Pix copia-e-cola copiado')}
 function confirmarPagamento(){
- const email=$('checkoutEmail').value.trim().toLowerCase();
- if(!email.includes('@')){toast('⚠️ Informe e-mail válido');return}
+ const raw=$('checkoutEmail').value.trim();
+ if(raw.length<3){toast('⚠️ Informe seu nick ou e-mail');return}
+ const u0=me();
+ const email=raw.includes('@')?raw.toLowerCase():(u0?u0.email:'');
+ const nick=raw;
  if(payMethod==='cartao'){const n=$('ccNum').value.replace(/\D/g,'');if(n.length<12){toast('⚠️ Cartão inválido');return}}
  DB=Store.load();
  for(const i of cart){const p=DB.products.find(x=>x.id===i.id);if(!p||p.stock<i.q){toast('❌ Estoque insuficiente: '+(p?p.name:''));return}}
  const total=cartTotal();
- const orderId='NX'+Date.now().toString().slice(-6);
+ const orderId='MW'+Date.now().toString().slice(-6);
  const ref=localStorage.getItem('nexos_ref')||'';
- const order={id:orderId,email,items:cart.map(i=>{const p=DB.products.find(x=>x.id===i.id);return{id:i.id,name:p.name,price:p.price,q:i.q,cat:p.cat}}),total,pay:payMethod,date:new Date().toLocaleString('pt-BR'),status:'aguardando',pix:payMethod==='pix'?$('pixCode').textContent:'',ref,keys:[]};
+ const order={id:orderId,email,nick,items:cart.map(i=>{const p=DB.products.find(x=>x.id===i.id);return{id:i.id,name:p.name,price:p.price,q:i.q,cat:p.cat}}),total,pay:payMethod,date:new Date().toLocaleString('pt-BR'),status:'aguardando',pix:payMethod==='pix'?$('pixCode').textContent:'',ref,keys:[]};
  cart.forEach(i=>{const p=DB.products.find(x=>x.id===i.id);p.stock-=i.q});
  DB.orders.unshift(order);
  // comissão afiliado (pendente)
  if(ref){const aff=DB.users.find(u=>u.affCode===ref);if(aff&&aff.email!==email){let com=0;order.items.forEach(it=>{com+=it.price*it.q*(commOf(it.cat)/100)});aff.wallet=(aff.wallet||0)+0;order.commission={to:ref,value:+com.toFixed(2)};}}
  Store.save(DB);
  currentOrder=orderId;cart=[];cupomDesc=0;saveCart();renderAll();fecharModais();
- $('sucessoMsg').innerHTML=`Pedido <b>${orderId}</b> de <b>${BRL(total)}</b> criado via <b>${payMethod==='pix'?'Pix':'Cartão'}</b>.<br>${payMethod==='pix'?`Pague o QR e clique em “Já paguei”.<br>📝 Na <b>descrição/mensagem do Pix</b> escreva a referência <b>${orderId}</b> — é assim que confirmamos seu pagamento rapidinho.`:'Pagamento do cartão em análise. Você recebe por e-mail.'}<br><small>Enviado para ${email} · Acompanhe em 👤 Conta → Meus pedidos</small>`;
+ $('sucessoMsg').innerHTML=`Pedido <b>${orderId}</b> de <b>${BRL(total)}</b> criado via <b>${payMethod==='pix'?'Pix':'Cartão'}</b>.<br>${payMethod==='pix'?`Pague o QR e clique em “Já paguei”.<br>📝 Na <b>descrição/mensagem do Pix</b> escreva a referência <b>${orderId}</b> — é assim que confirmamos seu pagamento rapidinho.`:'Pagamento do cartão em análise. Você recebe por e-mail.'}<br><small>Entrega para <b>${nick}</b>${email?' · '+email:''} · Acompanhe em 👤 Conta → Meus pedidos</small>`;
  $('sucessoKeys').innerHTML=`<div id="watchBox"><b>Status: aguardando pagamento</b><br><button class="btn-primary full" onclick="jaPaguei('${orderId}')">✅ Já paguei, liberar entrega</button><button class="btn-secondary full" onclick="abrirTicket('${orderId}')">🎫 Preciso de ajuda neste pedido</button></div>`;
  $('modalSucesso').classList.remove('hidden');watchOrder(orderId)}
 function jaPaguei(id){DB=Store.load();const o=DB.orders.find(x=>x.id===id);if(!o)return;
@@ -148,7 +151,7 @@ function watchOrder(id){if(watchInt)clearInterval(watchInt);watchInt=setInterval
 // gancho de confirmação automática via gateway (quando o dono conectar o backend)
 async function pollGateway(id){const url=(S().autoConfirmUrl||'').trim();if(!url)return;try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:id})});const j=await r.json();if(j&&j.paid){DB=Store.load();const o=DB.orders.find(x=>x.id===id);if(o&&o.status!=='entregue'){o.status='pago — conferindo';o.gatewayOk=true;Store.save(DB);toast('✅ Pagamento detectado automaticamente!')}}}catch(e){}}
 // ---------- tickets ----------
-function abrirTicket(orderId){const u=me();const email=u?u.email:($('checkoutEmail').value||prompt('Seu e-mail:')||'');if(!email.includes('@')){toast('⚠️ Faça login primeiro');abrirModal('modalLogin');return}
+function abrirTicket(orderId){const u=me();const email=(u?u.email:($('checkoutEmail').value||prompt('Seu nick ou e-mail:')||'')).trim();if(email.length<3){toast('⚠️ Faça login primeiro');abrirModal('modalLogin');return}
  const subj=prompt('Assunto (ex: não recebi, dúvida antes de comprar):')||'Ajuda com pedido';const msg=prompt('Descreva:')||subj;
  DB=Store.load();const t={id:String(Date.now()).slice(-5),email,orderId:orderId||'',subject:subj,status:'aberto',date:new Date().toLocaleString('pt-BR'),msgs:[{by:email,text:msg,date:new Date().toLocaleString('pt-BR')}]};DB.tickets.unshift(t);Store.save(DB);toast('🎫 Ticket #'+t.id+' aberto!');if(me()){renderConta();abrirModal('modalConta')}}
 function respTicket(id){const txt=$('rp-'+id).value.trim();if(!txt)return;DB=Store.load();const t=DB.tickets.find(x=>x.id===id);t.msgs.push({by:me().email,text:txt,date:new Date().toLocaleString('pt-BR')});t.status='aberto';Store.save(DB);renderConta();toast('✉️ Enviado')}
