@@ -1,0 +1,12 @@
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:Inter,Arial;background:#070b16;color:#eaf0ff;min-height:100vh}.hidden{display:none!important}
+.gate{min-height:100vh;display:grid;place-items:center}.gate-box{background:#0d1326;border:1px solid #223055;border-radius:18px;padding:28px;width:360px;max-width:92vw;text-align:center;display:grid;gap:10px}
+.logo{font-weight:900;font-size:22px}.logo span{background:linear-gradient(90deg,#7c5cff,#00d4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+input,select{background:#0a1128;border:1px solid #223055;color:#fff;padding:11px;border-radius:10px;width:100%}
+button{background:#182243;border:1px solid #223055;color:#fff;padding:11px 14px;border-radius:10px;cursor:pointer;font-weight:700}button.primary,.gate-box button{background:linear-gradient(90deg,#7c5cff,#00d4ff);color:#060818;border:none;font-weight:800}
+#panel{display:grid;grid-template-columns:220px 1fr;min-height:100vh}.side{background:#0a0f22;border-right:1px solid #223055;padding:16px;display:flex;flex-direction:column;gap:8px}.side button,.side a{text-align:left;text-decoration:none}.side button.active{outline:2px solid #00d4ff}
+.main{padding:20px;max-width:1000px}.main header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.card{background:#121a33;border:1px solid #223055;border-radius:14px;padding:14px}.card b{font-size:22px;display:block}.card small{color:#9aa7c7}
+.tab h3{margin:14px 0 10px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{font-size:13px;color:#9aa7c7;display:grid;gap:4px;margin-top:8px}
+.row{background:#121a33;border:1px solid #223055;border-radius:12px;padding:12px;margin:8px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row img{width:52px;height:52px;object-fit:cover;border-radius:10px;background:#000}.row .grow{flex:1;min-width:180px}.pill{background:#1e2a55;padding:3px 10px;border-radius:20px;font-size:12px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0f1a3a;border:1px solid #00d4ff;padding:12px 18px;border-radius:12px;z-index:50}
+@media(max-width:800px){#panel{grid-template-columns:1fr}.side{flex-direction:row;flex-wrap:wrap}.cards,.grid2{grid-template-columns:1fr}}

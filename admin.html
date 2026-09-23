@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Staff — KaizenMC</title>
+<link rel="stylesheet" href="admin.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="loginGate" class="gate">
+ <div class="gate-box"><div class="logo">K <span>Staff</span></div>
+ <h2>Painel da Loja</h2><p>Acesso restrito à equipe.</p>
+ <input id="staffPass" type="password" placeholder="Senha (inicial: admin123)">
+ <button onclick="staffLogin()">Entrar no painel</button>
+ <small><a href="index.html">← Voltar à loja</a></small></div>
+</div>
+<div id="panel" class="hidden">
+<aside class="side">
+ <div class="logo"><span class="js-sname">KaizenMC</span></div>
+ <button class="active" onclick="tab('dash',this)">📊 Dashboard</button>
+ <button onclick="tab('loja',this)">🏪 Loja / PIX</button>
+ <button onclick="tab('cats',this)">🗂️ Categorias</button>
+ <button onclick="tab('prods',this)">📦 Produtos</button>
+ <button onclick="tab('orders',this)">🧾 Pedidos <span id="ordBadge"></span></button>
+ <button onclick="tab('tickets',this)">🎫 Tickets <span id="tickBadge"></span></button>
+ <button onclick="tab('users',this)">👥 Clientes</button>
+ <button onclick="tab('coupons',this)">🎟️ Cupons</button>
+ <button onclick="tab('revs',this)">⭐ Avaliações</button>
+ <button onclick="tab('aff',this)">🤝 Afiliados</button>
+ <button onclick="tab('backup',this)">💾 Backup</button>
+ <a href="index.html">🌐 Ver loja</a>
+ <button onclick="staffLogout()">🚪 Sair</button>
+</aside>
+<main class="main">
+ <header><h1 id="tabTitle">Dashboard</h1><button onclick="resetAll()">♻️ Restaurar padrão</button></header>
+ <section id="t-dash" class="tab">
+  <div class="cards"><div class="card"><small>Faturamento</small><b id="stRev">R$ 0</b></div>
+  <div class="card"><small>Pedidos</small><b id="stOrd">0</b></div>
+  <div class="card"><small>Produtos</small><b id="stProd">0</b></div>
+  <div class="card"><small>Estoque total</small><b id="stStock">0</b></div></div>
+  <h3>Últimos pedidos</h3><div id="dashOrders"></div>
+ </section>
+ <section id="t-loja" class="tab hidden">
+  <h3>Nome, banner, links e PIX</h3>
+  <div class="grid2">
+  <label>Nome da loja<input id="f-storeName"></label>
+  <label>Texto promoção (marquee)<input id="f-banner"></label>
+  <label>Título hero<input id="f-heroTitle"></label>
+  <label>Imagem hero (URL)<input id="f-heroImg"></label>
+  <label>Logo (URL)<input id="f-logo"></label>
+  <label>Discord<input id="f-discord"></label>
+  <label>Instagram<input id="f-instagram"></label>
+  <label>Twitter/X<input id="f-twitter"></label>
+  <label>Youtube<input id="f-youtube"></label>
+  <label>Tiktok<input id="f-tiktok"></label>
+  <label>Chave PIX<input id="f-pixKey"></label>
+  <label>Nome recebedor PIX<input id="f-pixName"></label>
+  <label>Cidade PIX<input id="f-pixCity"></label>
+  <label>URL confirmação automática<input id="f-autoUrl"></label>
+  <label>E-mail<input id="f-supportEmail"></label>
+  <label>Nota avaliação<input id="f-rating"></label>
+  <label>Cor primária<input id="f-primary" type="color"></label>
+  <label>Cor secundária<input id="f-secondary" type="color"></label>
+  </div>
+  <label>Subtítulo hero<input id="f-heroSub"></label>
+  <label>Rodapé<input id="f-cnpj"></label>
+  <button class="primary" onclick="saveLoja()">💾 Salvar loja</button>
+  <hr><h3>Senha do painel</h3>
+  <label>Nova senha<input id="f-pass" placeholder="deixe vazio p/ manter"></label>
+  <button onclick="savePass()">Trocar senha</button>
+ </section>
+ <section id="t-cats" class="tab hidden">
+  <h3>Categorias (abas da loja)</h3><div id="catList"></div>
+  <div class="grid2"><input id="nc-label" placeholder="Nome: ex VIP"><input id="nc-icon" placeholder="Ícone: ex 👑"></div>
+  <button class="primary" onclick="addCat()">+ Adicionar categoria</button>
+ </section>
+ <section id="t-prods" class="tab hidden">
+  <h3>Produtos <input id="prodSearch" placeholder="🔎 buscar..." oninput="renderProds()" style="max-width:240px"></h3>
+  <div id="prodList"></div><hr>
+  <h3 id="pfTitle">Adicionar produto</h3>
+  <div class="grid2">
+   <label>Nome<input id="pf-name"></label><label>Categoria<select id="pf-cat"></select></label>
+   <label>Preço<input id="pf-price" type="number" step="0.01"></label><label>Preço antigo (p/ % OFF)<input id="pf-old" type="number" step="0.01"></label>
+   <label>Estoque<input id="pf-stock" type="number"></label><label>Entrega<input id="pf-delivery" value="Automática"></label>
+   <label>Emoji<input id="pf-emoji" placeholder="👑"></label><label>Imagem URL<input id="pf-img" placeholder="https://..."></label>
+  </div><label>Descrição<input id="pf-desc"></label>
+  <input type="hidden" id="pf-id">
+  <button class="primary" onclick="saveProd()">💾 Salvar produto</button>
+  <button onclick="clearProd()">Limpar</button>
+  <button onclick="loadSamples()">✨ Restaurar produtos Prime</button>
+ </section>
+ <section id="t-orders" class="tab hidden"><h3>Pedidos — conferência Pix</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button onclick="orderFilter='all';renderOrders()">Todos</button><button class="primary" onclick="orderFilter='wait';renderOrders()">⏳ Aguardando / conferindo</button><button onclick="orderFilter='done';renderOrders()">✅ Entregues</button></div>
+  <div id="orderList"></div></section>
+ <section id="t-tickets" class="tab hidden"><h3>Tickets de suporte</h3><div id="ticketList"></div></section>
+ <section id="t-users" class="tab hidden"><h3>Clientes / contas</h3><div id="userList"></div></section>
+ <section id="t-coupons" class="tab hidden"><h3>Cupons</h3><div id="couponList"></div>
+  <div class="grid2"><input id="cp-code" placeholder="CÓDIGO ex KAIZEN10"><input id="cp-percent" type="number" placeholder="% ex 10"></div>
+  <button class="primary" onclick="addCoupon()">+ Criar cupom</button></section>
+ <section id="t-revs" class="tab hidden"><h3>Avaliações</h3><div id="revList"></div></section>
+ <section id="t-aff" class="tab hidden"><h3>Comissões afiliados (%)</h3>
+  <div class="grid2"><label>Ranks<input id="cm-steam" type="number"></label><label>Prime<input id="cm-ass" type="number"></label><label>Outros<input id="cm-out" type="number"></label></div>
+  <button class="primary" onclick="saveComm()">💾 Salvar comissões</button>
+  <h3>Saques solicitados</h3><div id="wdList"></div>
+  <h3>Cliques por código</h3><div id="clickList"></div></section>
+ <section id="t-backup" class="tab hidden"><h3>Backup</h3>
+  <button onclick="exportJSON()">📥 Exportar JSON</button>
+  <button onclick="document.getElementById('impFile').click()">📤 Importar JSON</button>
+  <input id="impFile" type="file" accept=".json" class="hidden" onchange="importJSON(this)">
+  <button onclick="resetAll()" style="background:#7f1d1d">🗑️ Apagar tudo e voltar ao padrão</button></section>
+</main>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="store.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
