@@ -114,6 +114,39 @@ Object.assign(Store,{
   if(!r.ok||!j.ok) throw new Error(j.error||('http '+r.status));
   return j;
  },
+ // acoes do painel do staff, autenticadas
+ async apiStaff(body){
+  const passHash=passHashSalvo();
+  const r=await fetch(API+'?site='+SITE_ID,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,passHash})});
+  let j={};
+  try{ j=await r.json() }catch(e){}
+  if(!r.ok) throw new Error(j.error||('http '+r.status));
+  if(j.ok===false) throw new Error('Senha incorreta');
+  return j;
+ },
+ // encolhe a imagem do comprovante antes de enviar
+ comprimirImagem(file,maxLarg=1000){
+  return new Promise((res,rej)=>{
+   if(!file||!/^image\//.test(file.type)) return rej(new Error('Selecione uma imagem'));
+   if(file.size>12*1024*1024) return rej(new Error('Imagem muito grande (max 12 MB)'));
+   const fr=new FileReader();
+   fr.onerror=()=>rej(new Error('Nao consegui ler a imagem'));
+   fr.onload=()=>{
+    const img=new Image();
+    img.onerror=()=>rej(new Error('Arquivo de imagem invalido'));
+    img.onload=()=>{
+     let w=img.width,h=img.height;
+     const esc=Math.min(1,maxLarg/w);
+     w=Math.max(1,Math.round(w*esc));h=Math.max(1,Math.round(h*esc));
+     const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+     const cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,w,h);cx.drawImage(img,0,0,w,h);
+     try{ res(cv.toDataURL('image/jpeg',0.7)) }catch(e){ rej(new Error('Nao consegui processar a imagem')) }
+    };
+    img.src=fr.result;
+   };
+   fr.readAsDataURL(file);
+  });
+ },
 
  async hydrate(){
   try{

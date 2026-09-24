@@ -125,7 +125,7 @@ function renderConta(){const u=me();if(!u)return;const myOrders=DB.orders.filter
  <button class="btn-secondary" style="margin-top:8px" onclick="sacarAfiliado()">💸 Sacar via PIX</button></div>
  ${saques.length?'<small class="muted">Saques: '+saques.map(s=>s.status+' '+BRL(s.value)).join(' · ')+'</small>':''}
  <h3 style="margin-top:12px">🧾 Meus pedidos</h3>
- ${myOrders.map(o=>`<div class="keys"><b>${o.id}</b> · ${BRL(o.total)} · <b>${o.status}</b><br><small>${o.date} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small>${o.status==='entregue'?'<br>🔑 '+(o.keys||[]).join(' | '):'<br><small class="muted">Aguarde confirmação. Suporte: '+S().discord+'</small>'}<br><button class="btn-secondary" style="margin-top:6px" onclick="abrirTicket('${o.id}')">🎫 Suporte deste pedido</button></div>`).join('')||'<p class="muted">Nenhum pedido ainda.</p>'}
+  ${myOrders.map(o=>`<div class="keys"><b>${o.id}</b> · ${BRL(o.total)} · <b>${o.status}</b> ${proofLabel(o.proof)}<br><small>${o.date} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small>${o.status==='entregue'?'<br>🔑 '+(o.keys||[]).join(' | '):(o.proof&&o.proof.status==='enviado'?'<br><small class="muted">Comprovante em análise. Você não precisa reenviar.</small>':'<br><small class="muted">Pague e envie o comprovante. Suporte: '+S().discord+'</small>')}<br><button class="btn-secondary" style="margin-top:6px" onclick="abrirTicket('${o.id}')">🎫 Suporte deste pedido</button>${o.status!=='entregue'&&(!o.proof||o.proof.status==='recusado')?`<button class="btn-secondary" style="margin-top:6px" onclick="reabrirComprovante('${o.id}')">📎 Enviar/reescrever comprovante</button>`:''}</div>`).join('')||'<p class="muted">Nenhum pedido ainda.</p>'}
  <h3 style="margin-top:12px">🎫 Meus tickets</h3>
  ${myTickets.map(t=>`<div class="keys"><b>#${t.id}</b> ${t.subject} · <b>${t.status}</b><br>${t.msgs.map(m=>`<small><b>${m.by}:</b> ${m.text}</small>`).join('<br>')}<br><input id="rp-${t.id}" placeholder="Responder..."><button class="btn-secondary" onclick="respTicket('${t.id}')">Enviar</button></div>`).join('')||'<p class="muted">Sem tickets. <button class="btn-secondary" onclick="abrirTicket(\'\')">Abrir ticket</button></p>'}
  <button class="btn-secondary full" onclick="logout()">🚪 Sair da conta</button>`;
@@ -181,9 +181,10 @@ function salvarLocal(orderId,email,nick,itens,total,payMethod,pix,ref){
 }
 function mostrarSucesso(orderId,total,nick,email,pix,token){
  $('sucessoMsg').innerHTML=`Pedido <b>${orderId}</b> de <b>${BRL(total)}</b> criado via <b>${payMethod==='pix'?'Pix':'Cartão'}</b>.<br>${payMethod==='pix'?`Pague o QR e clique em “Já paguei”.<br>📝 Na <b>descrição do Pix</b> escreva a referência <b>${orderId}</b>.`:'Pagamento do cartão em análise.'}<br><small>Entrega para <b>${nick}</b>${email?' · '+email:''}<br>${Store.online?'Pedido registrado para a loja.':'⚠️ Modo local: seu staff ainda não conectou o banco.'}</small>`;
- $('sucessoKeys').innerHTML=`<div id="watchBox"><b>Status: aguardando pagamento</b><br><button class="btn-primary full" onclick="jaPaguei('${orderId}')">✅ Já paguei, liberar entrega</button><button class="btn-secondary full" onclick="abrirTicket('${orderId}')">🎫 Precisa de ajuda neste pedido</button></div>`;
+ $('sucessoKeys').innerHTML=`<div id="watchBox"><b>Status: aguardando pagamento</b><br><button class="btn-primary full" onclick="jaPaguei('${orderId}')">✅ Já paguei, enviar comprovante</button><button class="btn-secondary full" onclick="abrirTicket('${orderId}')">🎫 Precisa de ajuda neste pedido</button></div><div id="proofArea"></div>`;
  $('modalSucesso').classList.remove('hidden');
  watchOrder(orderId,token);
+ renderProof(orderId,token);
 }
 function jaPaguei(id){
  const token=localStorage.getItem('nexos_tok_'+id)||'local';
@@ -192,9 +193,76 @@ function jaPaguei(id){
  }else{
   DB=Store.load();const o=DB.orders.find(x=>x.id===id);if(o){o.status='pago — conferindo';Store.save(DB);}
  }
- toast('✅ Pagamento avisado! A entrega aparece aqui sozinha.');
+ toast('✅ Agora envie o comprovante do Pix abaixo.');
  if(me()){try{renderConta()}catch(e){}}
  watchOrder(id,token);
+ renderProof(id,token);
+}
+function proofLabel(p){
+ if(!p) return '';
+ if(p.status==='aprovado') return '<span class="pill" style="background:#22c55e;color:#04140a">✅ Comprovante aprovado</span>';
+ if(p.status==='recusado') return '<span class="pill" style="background:#ef4444;color:#fff">❌ Recusado'+(p.note?' — '+p.note:'')+'</span>';
+ return '<span class="pill" style="background:#facc15;color:#111">⏳ Em análise</span>';
+}
+async function renderProof(orderId,token){
+ const box=$('proofArea'); if(!box) return;
+ const local=Store.load(); const lo=local.orders.find(x=>x.id===orderId);
+ let pf=lo&&lo.proof||null;
+ if(Store.online&&token!=='local'){
+  try{ const r=await Store.pub({action:'getOrder',id:orderId,token}); pf=r.order.proof||pf; }catch(e){}
+ }
+ if(!pf||pf.status==='enviado'){
+  box.innerHTML=`
+   <div class="proof-box">
+    <h3>📎 Envie o comprovante do Pix</h3>
+    <p class="muted">A loja confere no extrato se o Pix caiu. Sem o comprovante nao da para liberar a entrega.</p>
+    <label class="btn-secondary" style="display:block;text-align:center;cursor:pointer">
+      📷 Escolher foto do comprovante
+      <input id="pfFile" type="file" accept="image/*" class="hidden" onchange="previewProof('${orderId}','${token}')">
+    </label>
+    <div id="pfPrev"></div>
+    <div class="grid2" style="margin-top:8px">
+     <input id="pfPayer" placeholder="Quem pagou (se for outra pessoa)">
+     <input id="pfE2E" placeholder="ID do comprovante (E000…) — opcional">
+    </div>
+    <button class="btn-primary full" onclick="enviarProof('${orderId}','${token}')">📨 Enviar comprovante</button>
+    <small class="muted">A imagem é encolhida antes de enviar. Em caso de recusa, você pode reenviar (até 3 vezes).</small>
+   </div>`;
+ }else{
+  box.innerHTML=`<div class="proof-box">${proofLabel(pf)}<br><small class="muted">Enviado em ${pf.sentAt||''}</small></div>`;
+ }
+}
+async function previewProof(orderId,token){
+ const f=$('pfFile').files[0]; if(!f) return;
+ $('pfPrev').innerHTML='<p class="muted">Processando imagem…</p>';
+ try{
+  const dataUrl=await Store.comprimirImagem(f);
+  $('pfPrev').innerHTML=`<img src="${dataUrl}" class="proof-prev"><small class="muted">${Math.round(dataUrl.length/1024)} KB</small>`;
+  $('pfPrev').dataset.url=dataUrl;
+ }catch(e){ $('pfPrev').innerHTML=`<p class="muted">${e.message}</p>`; }
+}
+async function enviarProof(orderId,token){
+ const prev=$('pfPrev'); const dataUrl=prev?prev.dataset.url||'':'';
+ const e2eId=$('pfE2E').value.trim(), payer=$('pfPayer').value.trim();
+ if(!dataUrl&&!e2eId){ toast('⚠️ Envie a foto ou digite o ID do comprovante'); return; }
+ if(token==='local'||!Store.online){ toast('⚠️ Sem banco conectado: comprovante fica só neste navegador'); return; }
+ try{
+  await Store.pub({action:'submitProof',id:orderId,token,dataUrl,e2eId,payer});
+  toast('📨 Comprovante enviado! Aguarde a conferência.');
+  renderProof(orderId,token);
+ }catch(e){ toast('⚠️ '+(e.message||'falha ao enviar')); }
+}
+function reabrirComprovante(orderId){
+ const token=localStorage.getItem('nexos_tok_'+orderId);
+ if(!token||token==='local'){toast('⚠️ Este pedido foi feito sem banco conectado');return}
+ DB=Store.load();const o=DB.orders.find(x=>x.id===orderId);
+ if(o){delete o.proof;Store.save(DB);}
+ $('sucessoMsg').innerHTML=`<b>Pedido ${orderId}</b><br><small>Envie abaixo o comprovante do Pix para a loja conferir.</small>`;
+ $('sucessoKeys').innerHTML=`<div id="watchBox"><b>Comprovante</b></div><div id="proofArea"></div>`;
+ document.querySelectorAll('.modal').forEach(m=>m.classList.add('hidden'));
+ $('modalSucesso').classList.remove('hidden');
+ watchOrder(orderId,token);
+ renderProof(orderId,token);
 }
 let watchInt=null;
 function watchOrder(id,token){
@@ -207,8 +275,9 @@ function watchOrder(id,token){
   }
   if(!o){const db=Store.load();o=db.orders.find(x=>x.id===id)}
   if(!o)return;
-  if(o.status==='entregue'){clearInterval(watchInt);box.innerHTML=`<div style="font-size:40px">🎉</div><b>Pagamento confirmado! Aqui está sua entrega:</b><div class="keys">🔑 ${(o.keys||[]).join('<br>🔑 ')}</div>`;toast('🎉 Pagamento confirmado!')}
-  else if(o.status==='pago'||o.status==='pago — conferindo'){const b=box.querySelector('b');if(b)b.textContent='Status: pagamento recebido, preparando entrega…'}
+  if(o.status==='entregue'){clearInterval(watchInt);box.innerHTML=`<div style="font-size:40px">🎉</div><b>Pagamento aprovado! Aqui está sua entrega:</b><div class="keys">🔑 ${(o.keys||[]).join('<br>🔑 ')}</div>`;toast('🎉 Pagamento aprovado!')}
+  else if(o.status==='pago'||o.status==='pago — conferindo'){const b=box.querySelector('b');if(b)b.textContent=(o.proof&&o.proof.status==='enviado')?'Comprovante recebido! Conferindo o Pix…':'Status: pagamento recebido, preparando entrega…';
+   if(o.proof&&$('proofArea'))renderProof(id,token);}
  },4000);
 }
 // ---------- tickets ----------

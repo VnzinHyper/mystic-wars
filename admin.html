@@ -22,6 +22,7 @@
  <button onclick="tab('cats',this)">🗂️ Categorias</button>
  <button onclick="tab('prods',this)">📦 Produtos</button>
  <button onclick="tab('orders',this)">🧾 Pedidos <span id="ordBadge"></span></button>
+ <button onclick="tab('proofs',this)">📎 Comprovantes <span id="proofBadge"></span></button>
  <button onclick="tab('tickets',this)">🎫 Tickets <span id="tickBadge"></span></button>
  <button onclick="tab('users',this)">👥 Clientes</button>
  <button onclick="tab('coupons',this)">🎟️ Cupons</button>
@@ -92,6 +93,10 @@
  <section id="t-orders" class="tab hidden"><h3>Pedidos — conferência Pix</h3>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button onclick="orderFilter='all';renderOrders()">Todos</button><button class="primary" onclick="orderFilter='wait';renderOrders()">⏳ Aguardando / conferindo</button><button onclick="orderFilter='done';renderOrders()">✅ Entregues</button></div>
   <div id="orderList"></div></section>
+ <section id="t-proofs" class="tab hidden"><h3>Comprovantes de pagamento</h3>
+  <p class="muted">Confira no seu extrato se o Pix caiu, depois aprove para entregar. O cliente não precisa fazer mais nada: a entrega aparece na tela dele.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><button class="primary" onclick="proofFilter='enviado';renderProofs()">⏳ Aguardando análise</button><button onclick="proofFilter='aprovado';renderProofs()">✅ Aprovados</button><button onclick="proofFilter='recusado';renderProofs()">❌ Recusados</button><button onclick="proofFilter='todos';renderProofs()">Todos</button></div>
+  <div id="proofList"></div></section>
  <section id="t-tickets" class="tab hidden"><h3>Tickets de suporte</h3><div id="ticketList"></div></section>
  <section id="t-users" class="tab hidden"><h3>Clientes / contas</h3><div id="userList"></div></section>
  <section id="t-coupons" class="tab hidden"><h3>Cupons</h3><div id="couponList"></div>

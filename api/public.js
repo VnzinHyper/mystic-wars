@@ -68,7 +68,7 @@ export default async function handler(req,res){
       db.products=produtos;
       const token=crypto.randomUUID().replace(/-/g,'').slice(0,12);
       const order={
-        id:txt(b.id,20)||('NX'+Date.now().toString().slice(-6)),
+        id:txt(b.id,20)||('MW'+Date.now().toString().slice(-6)),
         token,
         email:txt(b.email,120).toLowerCase(),
         nick:txt(b.nick,40),
@@ -91,7 +91,11 @@ export default async function handler(req,res){
       const id=txt(b.id,20),token=txt(b.token,20);
       const o=db.orders.find(x=>x.id===id&&x.token===token);
       if(!o) return bad(res,404,'Pedido nao encontrado');
-      return ok(res,{ok:true,order:{id:o.id,status:o.status,total:o.total,date:o.date,items:o.items,keys:o.keys||[],pix:o.pix}});
+      return ok(res,{ok:true,order:{
+        id:o.id,status:o.status,total:o.total,date:o.date,items:o.items,keys:o.keys||[],pix:o.pix,
+        // a imagem nao volta para o cliente: so o status do comprovante
+        proof:o.proof?{status:o.proof.status,sentAt:o.proof.sentAt,reviewedAt:o.proof.reviewedAt,note:o.proof.note,e2eId:o.proof.e2eId,amount:o.proof.amount,tentativas:(o.proofHistory||[]).length}:null
+      }});
     }
 
     if(action==='setOrderStatus'){
@@ -103,6 +107,31 @@ export default async function handler(req,res){
       if(novo==='pago — conferindo'){o.status=novo;o.paidAt=new Date().toISOString();}
       await rset(db);
       return ok(res,{ok:true,status:o.status});
+    }
+
+    if(action==='submitProof'){
+      // o cliente anexa o comprovante do Pix (print) ou o ID do comprovante
+      const id=txt(b.id,20),token=txt(b.token,20);
+      const o=db.orders.find(x=>x.id===id&&x.token===token);
+      if(!o) return bad(res,404,'Pedido nao encontrado');
+      if(o.status==='entregue') return bad(res,409,'Este pedido ja foi entregue');
+      if(o.status==='cancelado') return bad(res,409,'Este pedido foi cancelado');
+      if(o.proof&&o.proof.status==='aprovado') return bad(res,409,'Comprovante ja aprovado');
+      const hist=o.proofHistory||[];
+      if(hist.length>=3) return bad(res,429,'Limite de 3 envios por pedido');
+      const dataUrl=txt(b.dataUrl,1500000);
+      if(dataUrl&&!/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(dataUrl)) return bad(res,400,'Formato de imagem invalido');
+      const e2eId=txt(b.e2eId,80);
+      if(!dataUrl&&!e2eId) return bad(res,400,'Envie a imagem do comprovante ou o ID do comprovante');
+      const amount=Number(b.amount)||0;
+      if(amount>0&&Math.abs(amount-o.total)>0.01) return bad(res,400,'O valor enviado nao bate com o pedido');
+      const now=new Date().toLocaleString('pt-BR');
+      o.proof={status:'enviado',sentAt:now,reviewedAt:'',note:'',e2eId,amount:amount>0?amount:o.total,payer:txt(b.payer,60),dataUrl};
+      hist.push({sentAt:now,e2eId,amount:amount>0?amount:o.total});
+      o.proofHistory=hist;
+      if(o.status==='aguardando') o.status='pago — conferindo';
+      await rset(db);
+      return ok(res,{ok:true,status:'enviado'});
     }
 
     if(action==='upsertUser'){

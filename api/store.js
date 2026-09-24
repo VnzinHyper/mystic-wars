@@ -51,13 +51,51 @@ export default async function handler(req,res){
     }
 
     if(req.method==='POST'){
-      // confere a senha do staff contra o hash guardado no servidor
-      const passHash=String((req.body||{}).passHash||'');
+      // tudo que vem por aqui e do painel do staff
+      const b=req.body||{};
+      const passHash=String(b.passHash||'');
       if(!passHash) return bad(res,401,'Sem credencial');
-      const current=await redis.get();
-      if(!current||typeof current!=='object') return ok(res,{ok:true,first:true,remote:false});
-      if(!current.passHash) return ok(res,{ok:true,first:true,remote:true});
-      return ok(res,{ok:current.passHash===passHash,first:false,remote:true});
+      const raw=await redis.get();
+      const guard=(raw&&typeof raw==='object')?raw:null;
+      if(guard&&guard.passHash&&guard.passHash!==passHash) return bad(res,403,'Senha incorreta');
+
+      if(b.action==='proofs'){
+       const list=(guard&&guard.orders||[]).filter(o=>o.proof);
+       return ok(res,{ok:true,orders:list.map(o=>({
+        id:o.id,nick:o.nick,email:o.email,total:o.total,status:o.status,date:o.date,
+        items:o.items,keys:o.keys||[],ref:o.ref||'',
+        proof:{status:o.proof.status,sentAt:o.proof.sentAt,reviewedAt:o.proof.reviewedAt,note:o.proof.note,e2eId:o.proof.e2eId,amount:o.proof.amount,payer:o.proof.payer,dataUrl:o.proof.dataUrl},
+        tentativas:(o.proofHistory||[]).length
+       }))});
+      }
+
+      if(b.action==='reviewProof'){
+       if(!guard) return bad(res,404,'Loja ainda nao publicada no banco');
+       const o=(guard.orders||[]).find(x=>x.id===String(b.orderId||'').slice(0,20));
+       if(!o||!o.proof) return bad(res,404,'Comprovante nao encontrado');
+       if(o.proof.status==='aprovado') return bad(res,409,'Ja aprovado antes');
+       const aprovar=!!b.approve;
+       o.proof.status=aprovar?'aprovado':'recusado';
+       o.proof.reviewedAt=new Date().toLocaleString('pt-BR');
+       o.proof.note=String(b.note||'').slice(0,300);
+       if(aprovar){
+        o.status='pago';
+        if(b.deliver!==false){
+         const proprias=String(b.keys||'').split('|').map(s=>s.trim()).filter(Boolean).slice(0,20);
+         o.keys=proprias.length?proprias:o.items.map(()=> 'MW-'+Math.random().toString(36).slice(2,10).toUpperCase());
+         o.status='entregue';
+        }
+       }else if(o.status!=='entregue'){
+        o.status='aguardando';
+       }
+       await redis.set(guard);
+       return ok(res,{ok:true,status:o.status,keys:o.keys||[]});
+      }
+
+      // sem action: e apenas a checagem de senha do login
+      if(!guard) return ok(res,{ok:true,first:true,remote:false});
+      if(!guard.passHash) return ok(res,{ok:true,first:true,remote:true});
+      return ok(res,{ok:true,first:false,remote:true});
     }
 
     if(req.method==='PUT'){
