@@ -12,6 +12,8 @@
  <h2>Painel da Loja</h2><p>Acesso restrito à equipe.</p>
  <input id="staffPass" type="password" placeholder="Senha (inicial: admin123)">
  <button onclick="staffLogin()">Entrar no painel</button>
+ <p style="margin:8px 0"><small>Não entra? <a href="#" onclick="diag();return false">🔍 Testar conexão com o banco</a></small></p>
+ <div id="diagBox" class="hidden" style="background:#0a0a18;border:1px solid #2a2a45;border-radius:10px;padding:10px;font-size:12px;font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap;text-align:left"></div>
  <small><a href="index.html">← Voltar à loja</a></small></div>
 </div>
 <div id="panel" class="hidden">
@@ -33,7 +35,7 @@
  <button onclick="staffLogout()">🚪 Sair</button>
 </aside>
 <main class="main">
- <header><h1 id="tabTitle">Dashboard</h1><div style="display:flex;gap:10px;align-items:center"><span id="syncBadge" style="font-size:13px;font-weight:700">🟡 Verificando banco…</span><button onclick="resetAll()">♻️ Restaurar padrão</button></div></header>
+ <header><h1 id="tabTitle">Dashboard</h1><div style="display:flex;gap:10px;align-items:center"><span id="syncBadge" style="font-size:13px;font-weight:700">🟡 Verificando banco…</span><button onclick="diag()">🔍 Testar conexão</button><button onclick="resetAll()">♻️ Restaurar padrão</button></div></header>
  <section id="t-dash" class="tab">
   <div class="cards"><div class="card"><small>Faturamento</small><b id="stRev">R$ 0</b></div>
   <div class="card"><small>Pedidos</small><b id="stOrd">0</b></div>

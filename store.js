@@ -121,6 +121,7 @@ function fundir(local,remoto){
 }
 Object.assign(Store,{
  mode:'client',          // 'staff' faz o save() subir para o banco
+ _v:'3.1',               // versao do codigo, util no diagnostico
  get online(){ return remoteOnline; },
 
  async apiGet(){

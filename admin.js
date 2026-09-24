@@ -2,7 +2,7 @@ let DB = Store.load();
 Store.mode='staff';
 const BRL=v=>(+v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.add('hidden'),2400)}
-function semHash(){ return !localStorage.getItem('nexos_db_v1_hash'); }
+function semHash(){ return !localStorage.getItem('kaizen_db_v1_hash'); }
 function syncBadge(){
  const el=document.getElementById('syncBadge');
  if(!el) return;
@@ -22,6 +22,44 @@ function syncBadge(){
   el.style.color='#22c55e';
   el.title='O que voce mexe aparece para todos os clientes, em qualquer dispositivo.';
  }
+}
+// ---------- diagnostico: mostra exatamente onde a conexao falha ----------
+async function diag(){
+ const box=document.getElementById('diagBox');
+ if(!box) return;
+ box.classList.remove('hidden');
+ const L=[];
+ L.push('=== DIAGNÓSTICO ===');
+ L.push('página : '+location.href);
+ L.push('protocolo: '+location.protocol);
+ L.push('API    : '+(typeof API!=='undefined'?API:'(indefinida)'));
+ L.push('store.js carregado: '+(typeof Store!=='undefined'?'sim, v'+Store._v:'NAO'));
+ L.push('hash senha no PC: '+(passHashSalvo()?'SIM':'nao'));
+ L.push('');
+ L.push('testando…');
+ box.textContent=L.join('\n');
+ try{
+  const url=(typeof API!=='undefined'?API:'/api/store')+'?site='+(typeof SITE_ID!=='undefined'?SITE_ID:'legend');
+  const t0=Date.now();
+  const r=await fetch(url,{cache:'no-store'});
+  const txt=await r.text();
+  L.push('resposta: HTTP '+r.status+' em '+(Date.now()-t0)+'ms');
+  L.push('corpo   : '+txt.slice(0,220));
+  let n=null; try{const j=JSON.parse(txt);n=j&&j.data?(j.data.categories||[]).length:null}catch(e){}
+  if(n!==null) L.push('categorias no banco: '+n);
+ }catch(e){
+  L.push('ERRO DE REDE: '+(e&&e.message?e.message:e));
+  L.push('');
+  L.push('Se apareceu "Failed to fetch" ou "NetworkError":');
+  L.push('  1) o painel pode estar aberto pelo arquivo local (file://)');
+  L.push('  2) bloqueador de anuncios/privacidade do navegador pode estar');
+  L.push('     barrando. No Brave, desative os escudos para este site.');
+  L.push('  3) falta rede ou ha VPN/extensao bloqueando');
+ }
+ L.push('');
+ L.push('Store.online = '+(typeof Store!=='undefined'?Store.online:'?'));
+ L.push('ultimoErro  = '+(typeof Store!=='undefined'?(Store.ultimoErro||'(nenhum)'):'?'));
+ box.textContent=L.join('\n');
 }
 async function forcarSync(){
  toast('⏳ Sincronizando…');
@@ -43,10 +81,12 @@ async function staffLogin(){
  try{
   const r=await Store.apiAuth(h);
   if(r.ok===false){gate.innerHTML='';toast('❌ Senha não confere com o banco');buildGate();return}
+  // primeira senha: publica o catalogo atual no banco
   if(r.first) await Store.pushRemote();
   localStorage.setItem('nexos_staff_auth','1');
   location.reload();
  }catch(e){
+  // sem banco: funciona igual antes, so neste dispositivo
   localStorage.setItem('nexos_staff_auth','1');
   location.reload();
  }
@@ -54,7 +94,7 @@ async function staffLogin(){
 function buildGate(){
  const gate=document.getElementById('loginGate');
  if(!gate) return;
- gate.innerHTML=`<div class="gate-box"><div class="logo">K <span>Staff</span></div>
+ gate.innerHTML=`<div class="gate-box"><div class="logo">L <span>Staff</span></div>
  <h2>Painel da Loja</h2><p>Acesso restrito à equipe.</p>
  <input id="staffPass" type="password" placeholder="Senha">
  <button onclick="staffLogin()">Entrar no painel</button>
@@ -63,11 +103,35 @@ function buildGate(){
 function staffLogout(){localStorage.removeItem('nexos_staff_auth');location.reload()}
 async function savePass(){const v=document.getElementById('f-pass').value.trim();if(!v)return toast('⚠️ Digite a nova senha');if(v.length<4)return toast('⚠️ Mínimo 4 caracteres');localStorage.setItem('nexos_staff_pass',v);await Store.setSenha(v);await Store.pushRemote();toast('🔑 Senha atualizada e sincronizada')}
 function tab(name,el){document.querySelectorAll('.side button').forEach(b=>b.classList.remove('active'));if(el)el.classList.add('active');document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));document.getElementById('t-'+name).classList.remove('hidden');document.getElementById('tabTitle').textContent=el?el.textContent.replace(/[0-9]/g,'').trim():name;refresh()}
-function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderProofs();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();syncBadge();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'MysticWars')}
+function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();renderProofs();syncBadge();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'MysticWars')}
 function renderDash(){const paid=DB.orders.filter(o=>o.status!=='cancelado');const rev=paid.reduce((a,o)=>a+(+o.total||0),0);document.getElementById('stRev').textContent=BRL(rev);document.getElementById('stOrd').textContent=DB.orders.length;document.getElementById('stProd').textContent=DB.products.length;document.getElementById('stStock').textContent=DB.products.reduce((a,p)=>a+(+p.stock||0),0);document.getElementById('ordBadge').textContent=DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length?`(${DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length}!)`:(DB.orders.length?`(${DB.orders.length})`:'');document.getElementById('tickBadge').textContent=(DB.tickets||[]).filter(t=>t.status==='aberto').length?`(${(DB.tickets||[]).filter(t=>t.status==='aberto').length})`:'';
- document.getElementById('dashOrders').innerHTML=DB.orders.slice(0,5).map(o=>`<div class="row"><div class="grow"><b>${o.id}</b> · ${o.nick||o.email}<br><small>${o.date} · ${o.pay} · ${o.status} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small></div><b>${BRL(o.total)}</b></div>`).join('')||'<p style="color:#9aa7c7">Nenhuma venda ainda. Faça um pedido teste na loja.</p>'}
-function renderLoja(){const s=DB.settings;const m={ 'f-storeName':s.storeName,'f-banner':s.banner,'f-heroTitle':s.heroTitle,'f-heroImg':s.heroImg,'f-logo':s.logo,'f-discord':s.discord,'f-instagram':s.instagram,'f-twitter':s.twitter||'','f-youtube':s.youtube||'','f-tiktok':s.tiktok||'','f-pixKey':s.pixKey,'f-pixName':s.pixName,'f-pixCity':s.pixCity||'','f-autoUrl':s.autoConfirmUrl||'','f-supportEmail':s.supportEmail,'f-rating':s.rating,'f-primary':s.primary,'f-secondary':s.secondary,'f-heroSub':s.heroSub,'f-cnpj':s.cnpj};for(const k in m){const el=document.getElementById(k);if(el)el.value=m[k]}}
-function saveLoja(){const g=id=>{const el=document.getElementById(id);return el?el.value.trim():''};DB.settings={...DB.settings,storeName:g('f-storeName'),banner:g('f-banner'),heroTitle:g('f-heroTitle'),heroImg:g('f-heroImg'),logo:g('f-logo'),discord:g('f-discord'),instagram:g('f-instagram'),twitter:g('f-twitter'),youtube:g('f-youtube'),tiktok:g('f-tiktok'),pixKey:g('f-pixKey'),pixName:g('f-pixName'),pixCity:g('f-pixCity'),autoConfirmUrl:g('f-autoUrl'),supportEmail:g('f-supportEmail'),rating:g('f-rating'),primary:g('f-primary'),secondary:g('f-secondary'),heroSub:g('f-heroSub'),cnpj:g('f-cnpj')};Store.save(DB);toast('✅ Loja atualizada!')}
+ document.getElementById('dashOrders').innerHTML=DB.orders.slice(0,5).map(o=>`<div class="row"><div class="grow"><b>${o.id}</b> · ${o.email}<br><small>${o.date} · ${o.pay} · ${o.status} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small></div><b>${BRL(o.total)}</b></div>`).join('')||'<p style="color:#9aa7c7">Nenhuma venda ainda. Faça um pedido teste na loja.</p>'}
+// ---------- Loja / PIX ----------
+// le e grava TUDO que estiver com id comecando em "f-", sem lista fixa
+// (assim novos campos aparecem sozinhos e nada se perde)
+function camposLoja(){
+ const s=DB.settings||{};
+ const ids=[...document.querySelectorAll('input[id^="f-"],select[id^="f-"],textarea[id^="f-"]')].map(el=>el.id);
+ return {ids,s};
+}
+function renderLoja(){
+ const {ids,s}=camposLoja();
+ for(const id of ids){ if(id==='f-pass') continue; const el=document.getElementById(id); if(!el) continue;
+  const chave=id.slice(2);
+  el.value=(s[chave]!==undefined&&s[chave]!==null)?s[chave]:'';
+ }
+}
+function saveLoja(){
+ const {ids,s}=camposLoja();
+ const novo=Object.assign({},s);
+ for(const id of ids){ if(id==='f-pass') continue; const el=document.getElementById(id); if(!el) continue;
+  const chave=id.slice(2);
+  novo[chave]=(el.type==='checkbox')?el.checked:el.value.trim();
+ }
+ DB.settings=novo;
+ Store.save(DB);
+ toast('✅ Loja atualizada!');
+}
 function renderCats(){document.getElementById('catList').innerHTML=DB.categories.map(c=>{const n=DB.products.filter(p=>p.cat===c.id).length;return `<div class="row"><span style="font-size:24px">${c.icon}</span><div class="grow"><b>${c.label}</b> <span class="pill">${c.id}</span> <span class="pill">${n} produtos</span></div><button onclick="delCat('${c.id}')">🗑️</button></div>`}).join('')}
 function addCat(){const l=document.getElementById('nc-label').value.trim(),ic=document.getElementById('nc-icon').value.trim()||'📦';if(!l)return toast('⚠️ Nome obrigatório');const id=l.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');DB.categories.push({id,label:l,icon:ic});Store.save(DB);refresh();toast('✅ Categoria criada')}
 function delCat(id){if(!confirm('Excluir categoria? Produtos dela ficarão sem categoria.'))return;DB.categories=DB.categories.filter(c=>c.id!==id);Store.save(DB);refresh()}
@@ -81,12 +145,12 @@ function delProd(id){if(!confirm('Excluir produto?'))return;DB.products=DB.produ
 function loadSamples(){if(!confirm('Adicionar 3 produtos modelo ao catálogo?'))return;sampleProducts().forEach(p=>{if(!DB.products.find(x=>x.id===p.id))DB.products.push(p)});Store.save(DB);refresh();toast('✨ Modelos adicionados!')}
 let orderFilter='wait';
 function renderOrders(){const list=DB.orders.filter(o=>orderFilter==='all'?true:orderFilter==='wait'?['aguardando','pago — conferindo','pago'].includes(o.status):o.status==='entregue');
- document.getElementById('orderList').innerHTML=list.map(o=>{const idx=DB.orders.indexOf(o);return `<div class="row"><div class="grow"><b>${o.id}</b> · ${o.nick||o.email}${o.email&&o.nick?' ('+o.email+')':''} ${o.ref?'<span class="pill">ref:'+o.ref+'</span>':''} ${o.gatewayOk?'<span class="pill">🤖 gateway OK</span>':''}<br><small>📅 ${o.date} · ${o.pay} · <b>${o.status}</b> · Esperado: <b>${BRL(o.total)}</b><br>🧾 ${o.items.map(i=>i.q+'x '+i.name).join(' | ')}${o.receipt?'<br>🧾 Comprovante cliente: <b>'+o.receipt+'</b>':''}${o.keys&&o.keys.length?'<br>🔑 '+o.keys.join(' | '):''}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="primary" onclick="quickDeliver(${idx})">⚡ Pix caiu → entregar</button><button onclick="confirmPay(${idx})">✅ Só confirmar</button><button onclick="deliver(${idx})">📦 Entregar c/ chaves próprias</button><select onchange="orderStatus(${idx},this.value)">${['aguardando','pago — conferindo','pago','entregue','cancelado'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}</select><button onclick="delOrder(${idx})">🗑️</button></div></div>`}).join('')||'<p style="color:#9aa7c7">Nada aqui. 🎉</p>'}
+ document.getElementById('orderList').innerHTML=list.map(o=>{const idx=DB.orders.indexOf(o);return `<div class="row"><div class="grow"><b>${o.id}</b> · ${o.email} ${o.ref?'<span class="pill">ref:'+o.ref+'</span>':''} ${o.gatewayOk?'<span class="pill">🤖 gateway OK</span>':''}<br><small>📅 ${o.date} · ${o.pay} · <b>${o.status}</b> · Esperado: <b>${BRL(o.total)}</b><br>🧾 ${o.items.map(i=>i.q+'x '+i.name).join(' | ')}${o.receipt?'<br>🧾 Comprovante cliente: <b>'+o.receipt+'</b>':''}${o.keys&&o.keys.length?'<br>🔑 '+o.keys.join(' | '):''}</small></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="primary" onclick="quickDeliver(${idx})">⚡ Pix caiu → entregar</button><button onclick="confirmPay(${idx})">✅ Só confirmar</button><button onclick="deliver(${idx})">📦 Entregar c/ chaves próprias</button><select onchange="orderStatus(${idx},this.value)">${['aguardando','pago — conferindo','pago','entregue','cancelado'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}</select><button onclick="delOrder(${idx})">🗑️</button></div></div>`}).join('')||'<p style="color:#9aa7c7">Nada aqui. 🎉</p>'}
 function confirmPay(i){const o=DB.orders[i];o.status='pago';Store.save(DB);refresh();toast('✅ Pagamento de '+o.id+' confirmado')}
-function quickDeliver(i){const o=DB.orders[i];o.status='pago';o.keys=o.items.map(()=> 'MW-'+Math.random().toString(36).slice(2,10).toUpperCase());o.status='entregue';
+function quickDeliver(i){const o=DB.orders[i];o.status='pago';o.keys=o.items.map(()=> 'LEGEND-'+Math.random().toString(36).slice(2,10).toUpperCase());o.status='entregue';
  if(o.ref&&!o.comPaid){const aff=DB.users.find(u=>u.affCode===o.ref);if(aff){const v=(o.commission&&o.commission.value)||0;aff.wallet=(+aff.wallet||0)+v;o.comPaid=true;}}
  Store.save(DB);refresh();toast('⚡ '+o.id+' confirmado e entregue!')}
-function deliver(i){const o=DB.orders[i];const keys=o.items.map(()=> 'MW-'+Math.random().toString(36).slice(2,10).toUpperCase());const extra=prompt('Chaves/contas (separadas por |) — vazio p/ gerar automático:','')||'';o.keys=extra?extra.split('|').map(s=>s.trim()):keys;o.status='entregue';
+function deliver(i){const o=DB.orders[i];const keys=o.items.map(()=> 'LEGEND-'+Math.random().toString(36).slice(2,10).toUpperCase());const extra=prompt('Chaves/contas (separadas por |) — vazio p/ gerar automático:','')||'';o.keys=extra?extra.split('|').map(s=>s.trim()):keys;o.status='entregue';
  if(o.ref&&!o.comPaid){const aff=DB.users.find(u=>u.affCode===o.ref);if(aff){const v=(o.commission&&o.commission.value)||0;aff.wallet=(+aff.wallet||0)+v;o.comPaid=true;}}
  Store.save(DB);refresh();toast('📦 '+o.id+' entregue!')}
 function renderTickets(){document.getElementById('ticketList').innerHTML=(DB.tickets||[]).map((t,idx)=>`<div class="row"><div class="grow"><b>#${t.id}</b> ${t.subject} · ${t.email} ${t.orderId?('· pedido '+t.orderId):''} · <b>${t.status}</b><br>${t.msgs.map(m=>`<small><b>${m.by}:</b> ${m.text}</small>`).join('<br>')}<br><input id="ta-${idx}" placeholder="Responder como staff..."></div><div style="display:flex;gap:6px"><button onclick="ansTicket(${idx})">Responder</button><button onclick="closeTicket(${idx})">✔️ Fechar</button></div></div>`).join('')||'<p style="color:#9aa7c7">Sem tickets.</p>'}
@@ -163,7 +227,7 @@ function renderAff(){document.getElementById('cm-steam').value=DB.commissions.st
  document.getElementById('clickList').innerHTML=Object.entries(agg).map(([k,v])=>`<div class="row"><div class="grow"><b>?ref=${k}</b></div><span class="pill">${v} cliques</span></div>`).join('')||'<p style="color:#9aa7c7">Sem cliques.</p>'}
 function wdStatus(i,s){DB.withdrawals[i].status=s;Store.save(DB);refresh()}
 function saveComm(){DB.commissions={steam:+document.getElementById('cm-steam').value||0,assinaturas:+document.getElementById('cm-ass').value||0,outros:+document.getElementById('cm-out').value||0};Store.save(DB);toast('✅ Comissões salvas')}
-function exportJSON(){const b=new Blob([JSON.stringify(Store.load(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mysticwars-backup.json';a.click()}
+function exportJSON(){const b=new Blob([JSON.stringify(Store.load(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mystic-backup.json';a.click()}
 function importJSON(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{Store.save(JSON.parse(r.result));refresh();toast('✅ Backup importado')}catch(e){toast('❌ Arquivo inválido')}};r.readAsText(f)}
 function resetAll(){if(!confirm('Restaurar tudo para o padrão?'))return;Store.reset();Store.pushRemote();refresh();toast('♻️ Restaurado')}
 async function boot(){
@@ -171,6 +235,7 @@ async function boot(){
  if(localStorage.getItem('nexos_staff_auth')!=='1'){
   document.getElementById('loginGate').classList.remove('hidden');
   document.getElementById('panel').classList.add('hidden');
+  // ja tenta conectar para mostrar o estado do banco no login
   Store.hydrate().then(()=>{});
   return;
  }
@@ -178,9 +243,9 @@ async function boot(){
  document.getElementById('panel').classList.remove('hidden');
  refresh();
  const okSync=await Store.hydrate();
- if(okSync){ DB=Store.load(); refresh(); }
- else toast('🟡 Sem banco conectado: salvando só neste navegador');
- if(okSync&&semHash()) setTimeout(()=>toast('Saia e entre novamente no painel para registrar sua senha no banco'),900);
- setInterval(async()=>{ if(document.hidden) return; await Store.hydrate(); refresh(); },20000);
+ DB=Store.load(); refresh();
+ if(okSync&&semHash()) setTimeout(()=>toast('Clique no selo amarelo no topo para registrar sua senha no banco'),900);
+ // atualiza sozinho de tempos em tempos (outro staff pode ter mudado algo)
+ setInterval(async()=>{ if(document.hidden) return; await Store.hydrate(); DB=Store.load(); refresh(); },20000);
 }
 boot();
