@@ -92,6 +92,18 @@ export default async function handler(req,res){
        return ok(res,{ok:true,status:o.status,keys:o.keys||[]});
       }
 
+      if(b.action==='changePass'){
+       // rotacao de senha: exige a senha antiga e grava a nova
+       if(!guard) return bad(res,404,'Loja ainda nao publicada no banco');
+       const novo=String(b.newHash||'');
+       if(!novo) return bad(res,400,'Senha nova invalida');
+       if(guard.passHash&&guard.passHash!==String(b.oldHash||'')) return bad(res,403,'Senha atual incorreta');
+       guard.passHash=novo;
+       guard.passChangedAt=Date.now();
+       await redis.set(guard);
+       return ok(res,{ok:true});
+      }
+
       // sem action: e apenas a checagem de senha do login
       if(!guard) return ok(res,{ok:true,first:true,remote:false});
       if(!guard.passHash) return ok(res,{ok:true,first:true,remote:true});

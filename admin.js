@@ -80,7 +80,9 @@ async function staffLogin(){
  const h=await Store.setSenha(senha);
  try{
   const r=await Store.apiAuth(h);
-  if(r.ok===false){gate.innerHTML='';toast('❌ Senha não confere com o banco');buildGate();return}
+  if(r.ok===false){
+   gate.innerHTML='';toast('❌ '+(r.erro||'senha nao confere com o banco'));buildGate();return
+  }
   // primeira senha: publica o catalogo atual no banco
   if(r.first) await Store.pushRemote();
   localStorage.setItem('nexos_staff_auth','1');
@@ -101,7 +103,28 @@ function buildGate(){
  <small><a href="index.html">← Voltar à loja</a></small></div>`;
 }
 function staffLogout(){localStorage.removeItem('nexos_staff_auth');location.reload()}
-async function savePass(){const v=document.getElementById('f-pass').value.trim();if(!v)return toast('⚠️ Digite a nova senha');if(v.length<4)return toast('⚠️ Mínimo 4 caracteres');localStorage.setItem('nexos_staff_pass',v);await Store.setSenha(v);await Store.pushRemote();toast('🔑 Senha atualizada e sincronizada')}
+async function savePass(){
+ const v=$('f-pass').value.trim();
+ if(!v) return toast('⚠️ Digite a nova senha');
+ if(v.length<4) return toast('⚠️ Mínimo 4 caracteres');
+ const nova=await Store.hashDe(v);
+ if(!Store.online){
+  localStorage.setItem('nexos_staff_pass',v);
+  localStorage.setItem('kaizen_db_v1_hash',nova);
+  return toast('⚠️ Sem banco: senha guardada so neste navegador');
+ }
+ try{
+  // rotacao segura: o servidor confere a senha antiga e grava a nova
+  await Store.apiStaff({action:'changePass',oldHash:passHashSalvo(),newHash:nova});
+  localStorage.setItem('nexos_staff_pass',v);
+  localStorage.setItem('kaizen_db_v1_hash',nova);
+  $('f-pass').value='';
+  toast('🔑 Senha atualizada e sincronizada');
+  DB=Store.load(); refresh();
+ }catch(e){
+  toast('❌ '+(e.message||'falha ao trocar a senha'));
+ }
+}
 function tab(name,el){document.querySelectorAll('.side button').forEach(b=>b.classList.remove('active'));if(el)el.classList.add('active');document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));document.getElementById('t-'+name).classList.remove('hidden');document.getElementById('tabTitle').textContent=el?el.textContent.replace(/[0-9]/g,'').trim():name;refresh()}
 function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();renderProofs();syncBadge();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'MysticWars')}
 function renderDash(){const paid=DB.orders.filter(o=>o.status!=='cancelado');const rev=paid.reduce((a,o)=>a+(+o.total||0),0);document.getElementById('stRev').textContent=BRL(rev);document.getElementById('stOrd').textContent=DB.orders.length;document.getElementById('stProd').textContent=DB.products.length;document.getElementById('stStock').textContent=DB.products.reduce((a,p)=>a+(+p.stock||0),0);document.getElementById('ordBadge').textContent=DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length?`(${DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length}!)`:(DB.orders.length?`(${DB.orders.length})`:'');document.getElementById('tickBadge').textContent=(DB.tickets||[]).filter(t=>t.status==='aberto').length?`(${(DB.tickets||[]).filter(t=>t.status==='aberto').length})`:'';

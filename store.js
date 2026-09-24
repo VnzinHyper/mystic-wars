@@ -236,7 +236,9 @@ Object.assign(Store,{
   const h=await hashSenha(senha);
   localStorage.setItem(DB_KEY+'_hash',h);
   return h;
- }
+ },
+ // mesmo calculo, sem gravar: usado na troca de senha
+ async hashDe(senha){ return await hashSenha(senha); }
 });
 // === PIX BR Code real (EMVCo) ===
 function pixCRC16(s){let crc=0xFFFF;for(let i=0;i<s.length;i++){crc^=s.charCodeAt(i)<<8;for(let j=0;j<8;j++){crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);crc&=0xFFFF}}return crc.toString(16).toUpperCase().padStart(4,'0')}
