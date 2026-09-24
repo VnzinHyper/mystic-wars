@@ -25,8 +25,21 @@ export default async function handler(req,res){
   if(!site) return bad(res,400,'Informe ?site=identificador');
 
   const key=`loja:${site}`;
-  const rget=async()=>{const r=await fetch(`${URL_}/get/${encodeURIComponent(key)}`,{headers:{Authorization:`Bearer ${TOKEN}`}});if(!r.ok)throw new Error('banco indisponivel');const raw=(await r.json()).result;return raw?JSON.parse(raw):{};};
-  const rset=async(v)=>{const r=await fetch(`${URL_}/set/${encodeURIComponent(key)}`,{method:'POST',headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify(JSON.stringify(v))});if(!r.ok)throw new Error('banco indisponivel');return true;};
+  // mesmo decode tolerante do store.js (aceita objeto, texto JSON ou texto
+  // com escape extra) para os dois arquivos nunca divergirem de formato
+  function decode(raw){
+   if(raw==null) return null;
+   let v=raw;
+   for(let i=0;i<4 && typeof v==='string';i++){
+    const s=v.trim();
+    if(!s) break;
+    if(s[0]!=='{'&&s[0]!=='['&&s[0]!=='"') break;
+    try{ v=JSON.parse(s); }catch(e){ break; }
+   }
+   return v;
+  }
+  const rget=async()=>{const r=await fetch(`${URL_}/get/${encodeURIComponent(key)}`,{headers:{Authorization:`Bearer ${TOKEN}`}});if(!r.ok)throw new Error('banco indisponivel');return decode((await r.json()).result)||{};};
+  const rset=async(v)=>{const r=await fetch(`${URL_}/set/${encodeURIComponent(key)}`,{method:'POST',headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify(v)});if(!r.ok)throw new Error('banco indisponivel');return true;};
 
   try{
     const b=req.body||{};
@@ -55,7 +68,7 @@ export default async function handler(req,res){
       db.products=produtos;
       const token=crypto.randomUUID().replace(/-/g,'').slice(0,12);
       const order={
-        id:txt(b.id,20)||('MW'+Date.now().toString().slice(-6)),
+        id:txt(b.id,20)||('NX'+Date.now().toString().slice(-6)),
         token,
         email:txt(b.email,120).toLowerCase(),
         nick:txt(b.nick,40),
