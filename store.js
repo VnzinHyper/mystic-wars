@@ -83,7 +83,7 @@ const IS_LOCAL=((typeof location!=='undefined'?location.protocol:'')==='file:');
 const API=(IS_LOCAL?ONLINE_ORIGIN:'')+'/api/store';
 const PUB=(IS_LOCAL?ONLINE_ORIGIN:'')+'/api/public';
 let remoteOnline=false, pushTimer=null, inFlight=false, queued=false;
-let pushErro='', pendentes=0, ultimoAviso='';
+let pushErro='', pendentes=0, ultimoAviso='', authOk=true;
 
 async function sha256hex(text){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
@@ -120,9 +120,8 @@ function fundir(local,remoto){
  return out;
 }
 Object.assign(Store,{
- mode:'client',          // 'staff' faz o save() subir para o banco
- _v:'3.1',               // versao do codigo, util no diagnostico
- get online(){ return remoteOnline; },
+ mode:'client',      // 'staff' faz o save() subir para o banco
+ _v:'3.3',           // versao do codigo, usada no diagnostico
 
  async apiGet(){
   const r=await fetch(API+'?site='+SITE_ID,{cache:'no-store'});
@@ -200,15 +199,21 @@ Object.assign(Store,{
    try{
     const fundido=fundir(Store.load(),remoto);
     localStorage.setItem(DB_KEY,JSON.stringify(fundido));
-    if(fundido._dirty&&this.mode==='staff') this.pushRemote();
+    // aguarda o envio: sem isso, um push disparado aqui concorre com o
+    // push manual e faz ele desistir sem tentar
+    if(fundido._dirty&&this.mode==='staff') await this.pushRemote();
    }catch(e){}
    return true;
   },
 
  // sobe o catalogo/pedidos do painel para o servidor
  async pushRemote(){
-  if(remoteOnline===false) return false;
-  if(!passHashSalvo()){ pendentes++; pushErro='Senha nao registrada no banco'; avisar('⚠️ Saia e entre no painel para registrar sua senha no banco'); return false; }
+  if(remoteOnline===false){ await this.hydrate(); if(remoteOnline===false) return false; }
+  if(!passHashSalvo()){
+   pendentes++; pushErro='Senha nao registrada no banco';
+   avisar('⚠️ Saia e entre no painel para registrar sua senha no banco');
+   return false;
+  }
   if(inFlight){ queued=true; return false; }
   inFlight=true;
   try{
@@ -218,12 +223,23 @@ Object.assign(Store,{
    const depois=Store.load();
    depois._dirty=false; depois._syncedRev=depois._rev||0;
    localStorage.setItem(DB_KEY,JSON.stringify(depois));
-   remoteOnline=true; pushErro=''; pendentes=0;
+   remoteOnline=true; authOk=true; pushErro=''; pendentes=0;
   }catch(e){
    pushErro=String(e&&e.message?e.message:e);
    pendentes++;
-   if(/Senha incorreta/.test(pushErro)){ remoteOnline=false; avisar('❌ Senha do painel nao bate com o banco. Troque em Loja/PIX.'); }
-   else avisar('⚠️ Nao consegui enviar: '+pushErro);
+   if(/Senha incorreta/.test(pushErro)){
+    // a senha guardada neste navegador ficou desatualizada.
+    // recalcula a partir da senha que o usuario digitou e tenta de novo.
+    authOk=false;
+    if(await this.recuperarSenha()){
+     inFlight=false; queued=false;
+     return await this.pushRemote();
+    }
+    remoteOnline=true; // a conexao esta boa: o problema e so a senha
+    avisar('❌ Senha do painel nao bate com o banco. Saia e entre novamente.');
+   }else{
+    avisar('⚠️ Nao consegui enviar: '+pushErro);
+   }
   }finally{
    inFlight=false;
    if(queued){ queued=false; setTimeout(()=>Store.pushRemote(),1200); }
@@ -232,13 +248,41 @@ Object.assign(Store,{
  },
  pushSoon(){ setTimeout(()=>Store.pushRemote(),400); },
 
+ // recalcula o hash a partir da senha que o staff digitou neste navegador.
+ // Se o valor guardado estiver velho, isto conserta sozinho.
+ async recuperarSenha(){
+  const senha=localStorage.getItem('nexos_staff_pass');
+  if(!senha) return false;
+  const novo=await hashSenha(senha);
+  if(novo===passHashSalvo()) return false;
+  const antigo=passHashSalvo();
+  localStorage.setItem(DB_KEY+'_hash',novo);
+  try{ const r=await this.apiPut(this.carregamentoMinimo(),novo); if(r&&r.ok) return true; }catch(e){}
+  localStorage.setItem(DB_KEY+'_hash',antigo);
+  return false;
+ },
+ // base minima para testar a credencial sem enviar o catalogo inteiro
+ carregamentoMinimo(){
+  const d=Store.load();
+  return {settings:d.settings,categories:[],products:[],orders:[],users:[],tickets:[],coupons:[],reviews:[],clicks:[],withdrawals:[],commissions:d.commissions,_v:d._v,_rev:d._rev||0};
+ },
+
  async setSenha(senha){
   const h=await hashSenha(senha);
   localStorage.setItem(DB_KEY+'_hash',h);
   return h;
  },
  // mesmo calculo, sem gravar: usado na troca de senha
- async hashDe(senha){ return await hashSenha(senha); }
+  async hashDe(senha){ return await hashSenha(senha); }
+});
+
+// Os getters PRECISAM de defineProperties: Object.assign copia o valor deles
+// uma unica vez, o que congelaria Store.online em false para sempre.
+Object.defineProperties(Store,{
+ online:{get(){ return remoteOnline; },enumerable:true},
+ authOk:{get(){ return authOk; },enumerable:true},
+ pendentes:{get(){ return pendentes; },enumerable:true},
+ ultimoErro:{get(){ return pushErro; },enumerable:true}
 });
 // === PIX BR Code real (EMVCo) ===
 function pixCRC16(s){let crc=0xFFFF;for(let i=0;i<s.length;i++){crc^=s.charCodeAt(i)<<8;for(let j=0;j<8;j++){crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);crc&=0xFFFF}}return crc.toString(16).toUpperCase().padStart(4,'0')}

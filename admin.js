@@ -9,8 +9,11 @@ function syncBadge(){
  const sujo=!!(DB&&DB._dirty);
  if(!Store.online){
   const via=typeof API!=='undefined'?API:'api';
-  el.innerHTML=`<a href="#" onclick="forcarSync();return false" style="color:#ef4444;font-weight:700" title="Servidor: ${via}&#10;${Store.ultimoErro||'sem resposta'}">🔴 Sem banco — clique para tentar de novo</a>`;
+  el.innerHTML=`<a href="#" onclick="forcarSync();return false" style="color:#ef4444;font-weight:700" title="Servidor: ${via}&#10;${Store.ultimoErro||'sem resposta'}">🔴 Banco fora do ar — clique para tentar</a>`;
   el.title='Sem resposta do banco em '+via+'. '+(Store.ultimoErro||'');
+ }else if(Store.authOk===false){
+  el.innerHTML='<a href="#" onclick="forcarSync();return false" style="color:#f97316;font-weight:700">🟠 Senha desatualizada — clique para corrigir</a>';
+  el.title='O banco esta online, mas a senha guardada neste navegador nao bate. Clique para recalcular.';
  }else if(sujo){
   el.innerHTML='🟡 <a href="#" onclick="forcarSync();return false" style="color:#facc15;font-weight:700">Enviando… (se nao sair, clique)</a>';
   el.title='Voce tem alteracoes que ainda nao foram para o banco. Nada sera apagado.';
@@ -58,17 +61,24 @@ async function diag(){
  }
  L.push('');
  L.push('Store.online = '+(typeof Store!=='undefined'?Store.online:'?'));
+ L.push('Store.authOk = '+(typeof Store!=='undefined'?Store.authOk:'?'));
+ L.push('hash gravado: '+(passHashSalvo().slice(0,12))+'…');
  L.push('ultimoErro  = '+(typeof Store!=='undefined'?(Store.ultimoErro||'(nenhum)'):'?'));
  box.textContent=L.join('\n');
 }
 async function forcarSync(){
  toast('⏳ Sincronizando…');
  await Store.hydrate();
+ if(Store.authOk===false){
+  // recalcula a senha a partir da que o staff digitou e tenta de novo
+  await Store.recuperarSenha();
+ }
  DB=Store.load();
  await Store.pushRemote();
  DB=Store.load();
  refresh();
- if(Store.ultimoErro) toast('❌ '+Store.ultimoErro+' — endereço: '+(typeof API!=='undefined'?API:'?'));
+ if(!Store.online) toast('❌ Banco fora do ar: '+(Store.ultimoErro||'sem resposta'));
+ else if(Store.authOk===false) toast('🟠 Senha do painel nao bate. Clique em Sair e entre de novo.');
  else toast('✅ Sincronizado com todos!');
 }
 function pass(){return localStorage.getItem('nexos_staff_pass')||'admin123'}
