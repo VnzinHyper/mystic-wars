@@ -76,8 +76,12 @@ const Store = {
 // todos os clientes, em qualquer dispositivo. Sem configuracao, continua
 // funcionando com localStorage (modo offline).
 const SITE_ID='mystic';
-const API='/api/store';
-const PUB='/api/public';
+// Se o painel for aberto pelo arquivo local (duplo clique), aponta para a API
+// ja publicada. No site normal, usa o caminho relativo da propria Vercel.
+const ONLINE_ORIGIN='https://mystic-wars.vercel.app';
+const IS_LOCAL=((typeof location!=='undefined'?location.protocol:'')==='file:');
+const API=(IS_LOCAL?ONLINE_ORIGIN:'')+'/api/store';
+const PUB=(IS_LOCAL?ONLINE_ORIGIN:'')+'/api/public';
 let remoteOnline=false, pushTimer=null, inFlight=false, queued=false;
 let pushErro='', pendentes=0, ultimoAviso='';
 
@@ -186,7 +190,12 @@ Object.assign(Store,{
     remoto=await this.apiGet();
     if(typeof remoto==='string'){ try{remoto=JSON.parse(remoto)}catch(e){remoto=null} }
     remoteOnline=true;
-   }catch(e){ remoteOnline=false; return false; }
+   }catch(e){
+    remoteOnline=false;
+    pushErro=String(e&&e.message?e.message:e);
+    console.warn('[loja] banco indisponivel em '+API+':',pushErro);
+    return false;
+   }
    try{
     const fundido=fundir(Store.load(),remoto);
     localStorage.setItem(DB_KEY,JSON.stringify(fundido));

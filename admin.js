@@ -8,8 +8,9 @@ function syncBadge(){
  if(!el) return;
  const sujo=!!(DB&&DB._dirty);
  if(!Store.online){
-  el.innerHTML='🔴 <a href="#" onclick="forcarSync();return false" style="color:#ef4444;font-weight:700">Sem banco — clique para tentar de novo</a>';
-  el.title='Sem credenciais do banco na Vercel. As mudancas ficam so neste navegador.';
+  const via=typeof API!=='undefined'?API:'api';
+  el.innerHTML=`<a href="#" onclick="forcarSync();return false" style="color:#ef4444;font-weight:700" title="Servidor: ${via}&#10;${Store.ultimoErro||'sem resposta'}">🔴 Sem banco — clique para tentar de novo</a>`;
+  el.title='Sem resposta do banco em '+via+'. '+(Store.ultimoErro||'');
  }else if(sujo){
   el.innerHTML='🟡 <a href="#" onclick="forcarSync();return false" style="color:#facc15;font-weight:700">Enviando… (se nao sair, clique)</a>';
   el.title='Voce tem alteracoes que ainda nao foram para o banco. Nada sera apagado.';
@@ -29,7 +30,8 @@ async function forcarSync(){
  await Store.pushRemote();
  DB=Store.load();
  refresh();
- if(Store.ultimoErro) toast('❌ '+Store.ultimoErro); else toast('✅ Sincronizado!');
+ if(Store.ultimoErro) toast('❌ '+Store.ultimoErro+' — endereço: '+(typeof API!=='undefined'?API:'?'));
+ else toast('✅ Sincronizado com todos!');
 }
 function pass(){return localStorage.getItem('nexos_staff_pass')||'admin123'}
 async function staffLogin(){
