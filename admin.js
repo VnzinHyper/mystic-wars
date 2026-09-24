@@ -1,12 +1,45 @@
 let DB = Store.load();
+Store.mode='staff';
 const BRL=v=>(+v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.remove('hidden');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.add('hidden'),2400)}
+function syncBadge(){
+ const el=document.getElementById('syncBadge');
+ if(!el) return;
+ const on=Store.online;
+ el.textContent=on?'🟢 Banco conectado — salva para todos':'🟡 Modo local — configure o banco na Vercel';
+ el.style.color=on?'#22c55e':'#facc15';
+}
 function pass(){return localStorage.getItem('nexos_staff_pass')||'admin123'}
-function staffLogin(){if(document.getElementById('staffPass').value===pass()){localStorage.setItem('nexos_staff_auth','1');boot()}else toast('❌ Senha incorreta')}
+async function staffLogin(){
+ const senha=document.getElementById('staffPass').value;
+ const gate=document.getElementById('loginGate');
+ if(senha!==pass()){toast('❌ Senha incorreta');return}
+ gate.innerHTML='<p style="color:#9aa7c7">Conectando ao banco…</p>';
+ const h=await Store.setSenha(senha);
+ try{
+  const r=await Store.apiAuth(h);
+  if(r.ok===false){gate.innerHTML='';toast('❌ Senha não confere com o banco');buildGate();return}
+  if(r.first) await Store.pushRemote();
+  localStorage.setItem('nexos_staff_auth','1');
+  location.reload();
+ }catch(e){
+  localStorage.setItem('nexos_staff_auth','1');
+  location.reload();
+ }
+}
+function buildGate(){
+ const gate=document.getElementById('loginGate');
+ if(!gate) return;
+ gate.innerHTML=`<div class="gate-box"><div class="logo">K <span>Staff</span></div>
+ <h2>Painel da Loja</h2><p>Acesso restrito à equipe.</p>
+ <input id="staffPass" type="password" placeholder="Senha">
+ <button onclick="staffLogin()">Entrar no painel</button>
+ <small><a href="index.html">← Voltar à loja</a></small></div>`;
+}
 function staffLogout(){localStorage.removeItem('nexos_staff_auth');location.reload()}
-function savePass(){const v=document.getElementById('f-pass').value.trim();if(v){localStorage.setItem('nexos_staff_pass',v);toast('🔑 Senha atualizada')} }
+async function savePass(){const v=document.getElementById('f-pass').value.trim();if(!v)return toast('⚠️ Digite a nova senha');if(v.length<4)return toast('⚠️ Mínimo 4 caracteres');localStorage.setItem('nexos_staff_pass',v);await Store.setSenha(v);await Store.pushRemote();toast('🔑 Senha atualizada e sincronizada')}
 function tab(name,el){document.querySelectorAll('.side button').forEach(b=>b.classList.remove('active'));if(el)el.classList.add('active');document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));document.getElementById('t-'+name).classList.remove('hidden');document.getElementById('tabTitle').textContent=el?el.textContent.replace(/[0-9]/g,'').trim():name;refresh()}
-function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'MysticWars')}
+function refresh(){DB=Store.load();renderDash();renderLoja();renderCats();renderProds();renderOrders();renderTickets();renderUsers();renderCoupons();renderRevs();renderAff();syncBadge();document.querySelector('.js-sname').textContent=(DB.settings.storeName||'MysticWars')}
 function renderDash(){const paid=DB.orders.filter(o=>o.status!=='cancelado');const rev=paid.reduce((a,o)=>a+(+o.total||0),0);document.getElementById('stRev').textContent=BRL(rev);document.getElementById('stOrd').textContent=DB.orders.length;document.getElementById('stProd').textContent=DB.products.length;document.getElementById('stStock').textContent=DB.products.reduce((a,p)=>a+(+p.stock||0),0);document.getElementById('ordBadge').textContent=DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length?`(${DB.orders.filter(o=>o.status==='aguardando'||o.status.startsWith('pago')).length}!)`:(DB.orders.length?`(${DB.orders.length})`:'');document.getElementById('tickBadge').textContent=(DB.tickets||[]).filter(t=>t.status==='aberto').length?`(${(DB.tickets||[]).filter(t=>t.status==='aberto').length})`:'';
  document.getElementById('dashOrders').innerHTML=DB.orders.slice(0,5).map(o=>`<div class="row"><div class="grow"><b>${o.id}</b> · ${o.nick||o.email}<br><small>${o.date} · ${o.pay} · ${o.status} · ${o.items.map(i=>i.q+'x '+i.name).join(', ')}</small></div><b>${BRL(o.total)}</b></div>`).join('')||'<p style="color:#9aa7c7">Nenhuma venda ainda. Faça um pedido teste na loja.</p>'}
 function renderLoja(){const s=DB.settings;const m={ 'f-storeName':s.storeName,'f-banner':s.banner,'f-heroTitle':s.heroTitle,'f-heroImg':s.heroImg,'f-logo':s.logo,'f-discord':s.discord,'f-instagram':s.instagram,'f-twitter':s.twitter||'','f-youtube':s.youtube||'','f-tiktok':s.tiktok||'','f-pixKey':s.pixKey,'f-pixName':s.pixName,'f-pixCity':s.pixCity||'','f-autoUrl':s.autoConfirmUrl||'','f-supportEmail':s.supportEmail,'f-rating':s.rating,'f-primary':s.primary,'f-secondary':s.secondary,'f-heroSub':s.heroSub,'f-cnpj':s.cnpj};for(const k in m){const el=document.getElementById(k);if(el)el.value=m[k]}}
@@ -50,6 +83,21 @@ function wdStatus(i,s){DB.withdrawals[i].status=s;Store.save(DB);refresh()}
 function saveComm(){DB.commissions={steam:+document.getElementById('cm-steam').value||0,assinaturas:+document.getElementById('cm-ass').value||0,outros:+document.getElementById('cm-out').value||0};Store.save(DB);toast('✅ Comissões salvas')}
 function exportJSON(){const b=new Blob([JSON.stringify(Store.load(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mysticwars-backup.json';a.click()}
 function importJSON(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{Store.save(JSON.parse(r.result));refresh();toast('✅ Backup importado')}catch(e){toast('❌ Arquivo inválido')}};r.readAsText(f)}
-function resetAll(){if(!confirm('Restaurar tudo para o padrão?'))return;Store.reset();refresh();toast('♻️ Restaurado')}
-function boot(){if(localStorage.getItem('nexos_staff_auth')!=='1'){document.getElementById('loginGate').classList.remove('hidden');document.getElementById('panel').classList.add('hidden');return}document.getElementById('loginGate').classList.add('hidden');document.getElementById('panel').classList.remove('hidden');refresh()}
+function resetAll(){if(!confirm('Restaurar tudo para o padrão?'))return;Store.reset();Store.pushRemote();refresh();toast('♻️ Restaurado')}
+async function boot(){
+ buildGate();
+ if(localStorage.getItem('nexos_staff_auth')!=='1'){
+  document.getElementById('loginGate').classList.remove('hidden');
+  document.getElementById('panel').classList.add('hidden');
+  Store.hydrate().then(()=>{});
+  return;
+ }
+ document.getElementById('loginGate').classList.add('hidden');
+ document.getElementById('panel').classList.remove('hidden');
+ refresh();
+ const okSync=await Store.hydrate();
+ if(okSync){ DB=Store.load(); refresh(); }
+ else if(!Store.online) toast('🟡 Sem banco conectado: salvando só neste navegador');
+ setInterval(async()=>{ if(document.hidden) return; await Store.hydrate(); refresh(); },20000);
+}
 boot();

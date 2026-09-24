@@ -32,7 +32,7 @@
  <button onclick="staffLogout()">🚪 Sair</button>
 </aside>
 <main class="main">
- <header><h1 id="tabTitle">Dashboard</h1><button onclick="resetAll()">♻️ Restaurar padrão</button></header>
+ <header><h1 id="tabTitle">Dashboard</h1><div style="display:flex;gap:10px;align-items:center"><span id="syncBadge" style="font-size:13px;font-weight:700">🟡 Verificando banco…</span><button onclick="resetAll()">♻️ Restaurar padrão</button></div></header>
  <section id="t-dash" class="tab">
   <div class="cards"><div class="card"><small>Faturamento</small><b id="stRev">R$ 0</b></div>
   <div class="card"><small>Pedidos</small><b id="stOrd">0</b></div>
