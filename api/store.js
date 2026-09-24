@@ -82,7 +82,7 @@ export default async function handler(req,res){
         o.status='pago';
         if(b.deliver!==false){
          const proprias=String(b.keys||'').split('|').map(s=>s.trim()).filter(Boolean).slice(0,20);
-         o.keys=proprias.length?proprias:o.items.map(()=> 'MW-'+Math.random().toString(36).slice(2,10).toUpperCase());
+         o.keys=proprias.length?proprias:o.items.map(()=> 'LEG-'+Math.random().toString(36).slice(2,10).toUpperCase());
          o.status='entregue';
         }
        }else if(o.status!=='entregue'){
@@ -107,6 +107,8 @@ export default async function handler(req,res){
       if(current.passHash&&current.passHash!==passHash) return bad(res,403,'Senha incorreta');
       for(const t of TABLES) if(data[t]!==undefined) current[t]=data[t];
       if(data._v!==undefined) current._v=data._v;
+      if(data._rev!==undefined) current._rev=Number(data._rev)||0;
+      current._syncedRev=current._rev;
       current.passHash=passHash;
       current.updatedAt=Date.now();
       await redis.set(current);
